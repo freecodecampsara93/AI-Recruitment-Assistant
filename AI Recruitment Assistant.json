@@ -1,0 +1,276 @@
+{
+  "name": "AI Recruitment Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recruitment-agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -160,
+        -144
+      ],
+      "id": "5ad491cd-b741-4f54-a096-ddc27ff57d2d",
+      "name": "Webhook",
+      "webhookId": "52aae607-56c1-4f8d-a447-02a59d74641a"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "You are an AI Recruitment Assistant.\n\nYour job is to help HR users manage candidates.\n\nYou have access to tools for:\n\n1. Searching candidates.\n2. Getting candidate details.\n3. Updating candidate status.\n4. Sending candidate emails.\n\nAlways choose the appropriate tool based on the user's request.\n\nDo not invent candidate information.\n\nWhen a specific candidate is mentioned, verify the candidate information using the database tools.\n\nBefore changing a candidate's status, verify the candidate and require human confirmation before executing the update.\n\nBefore sending an email, verify the candidate's email address and prepare the email content. The Gmail tool requires human approval before sending.\n\nIf a tool fails, clearly explain the problem and never claim that an action succeeded.\n\nFor search requests, return concise and accurate candidate information.\n\nBe professional and concise."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        144,
+        -224
+      ],
+      "id": "0ef19d28-0324-4911-8b29-fbd54978fe38",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "=models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        96,
+        208
+      ],
+      "id": "74a40fc7-dc0a-410f-8d39-519f68689295",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "DAGUSJSykLbGmxT9",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Search the candidates database by name, position, skills, or status.\n\nUse this tool when the user asks to find or search for candidates.",
+        "operation": "executeQuery",
+        "query": "SELECT id, name, email, position, skills, experience_years, status\nFROM candidates\nWHERE name ILIKE '%' || $1 || '%'\n   OR position ILIKE '%' || $1 || '%'\n   OR skills ILIKE '%' || $1 || '%'\n   OR status ILIKE '%' || $1 || '%'\nORDER BY experience_years DESC;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('search_term', 'One keyword to search for, like Angular or Frontend', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        560,
+        176
+      ],
+      "id": "4fbdf097-29b2-4729-9ca3-d86034834bc7",
+      "name": "search_candidates",
+      "notesInFlow": false,
+      "credentials": {
+        "postgres": {
+          "id": "kucQ917z6tKZodju",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Get complete information about one candidate by candidate ID or exact email.\n\nUse this tool when the user asks for details about a specific candidate.",
+        "operation": "executeQuery",
+        "query": "SELECT id, name, email, phone, position, skills, experience_years, status, created_at\nFROM candidates\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('candidate_id', 'The numeric candidate ID', 'number') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        720,
+        64
+      ],
+      "id": "c8af69c7-db00-49bf-9c26-ddd3ea5f2437",
+      "name": "get_candidate",
+      "credentials": {
+        "postgres": {
+          "id": "FdyDfdWcFNT2Y7to",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Update the status of a candidate.\n\nAllowed statuses:\nnew\nscreening\ninterview\nrejected\nhired\n\nOnly use this tool after the user confirms the action.",
+        "operation": "executeQuery",
+        "query": "UPDATE candidates\nSET status = $2\nWHERE id = $1\nRETURNING id, name, email, status;",
+        "options": {
+          "queryReplacement": "={{ $fromAI('candidate_id', 'The numeric candidate ID', 'number') }}, {{ $fromAI('new_status', 'One of: new, screening, interview, rejected, hired', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        720,
+        -144
+      ],
+      "id": "791d0292-93f2-460c-b247-6de6e80da675",
+      "name": "update_candidate_status",
+      "credentials": {
+        "postgres": {
+          "id": "FdyDfdWcFNT2Y7to",
+          "name": "Postgres account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Send an email to a candidate.\nUse this tool only after the user confirms the email content and recipient.",
+        "sendTo": "={{ $fromAI('to', 'The recipient email address', 'string') }}",
+        "subject": "={{ $fromAI('subject', 'The email subject line', 'string') }}",
+        "emailType": "text",
+        "message": "={{ $fromAI('message', 'The full email body text', 'string') }}",
+        "options": {
+          "appendAttribution": "={{ true }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.2,
+      "position": [
+        320,
+        144
+      ],
+      "id": "94c4819a-754f-4a08-95b8-55335a01ef23",
+      "name": "send_candidate_email1",
+      "webhookId": "4f687cea-47fe-48cc-960d-35ffc0ef2001",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "250HHL5fx47wcIHy",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId }}",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.4,
+      "position": [
+        208,
+        16
+      ],
+      "id": "ad2ed15f-9c0f-41cd-b5d1-76244943ea98",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "FdyDfdWcFNT2Y7to",
+          "name": "Postgres account 3"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "search_candidates": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_candidate": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_candidate_status": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send_candidate_email1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "32cee482-123c-42bb-8009-fb6e76e22eaf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6f3e91f871cf3b9b44358865a0d0bf8e8930efafdf47edb503f2b0585f37eea8"
+  },
+  "nodeGroups": [],
+  "id": "s3KF2m9qkiCbTAFZ",
+  "tags": []
+}
