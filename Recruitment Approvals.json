@@ -1,0 +1,397 @@
+{
+  "name": "Recruitment Approvals",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -512,
+        -64
+      ],
+      "id": "4e12a5e1-f293-4587-9174-d27d3c750a43",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pending_actions SET status = 'awaiting'\nWHERE id = (SELECT id FROM pending_actions WHERE status = 'pending' ORDER BY id LIMIT 1)\nRETURNING id, action, candidate_id, payload;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -208,
+        -48
+      ],
+      "id": "16521d2b-d951-4000-8ec7-e8464ffbcbe1",
+      "name": "Lock pending",
+      "credentials": {
+        "postgres": {
+          "id": "z1y6oeOksImZMmBM",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "88d7f861-e4df-4bee-87d8-1f8ffed8eb7c",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -16,
+        -16
+      ],
+      "id": "1e9235ee-723e-4325-9100-67e058117788",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "sendTo": "seramohamedn8n5@gmail.com",
+        "subject": "=Approval needed: {{ $json.action }} for candidate {{ $json.candidate_id }}",
+        "message": "=Request #{{ $json.id }} Action: {{ $json.action }} Details: {{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        96,
+        -288
+      ],
+      "id": "d1fc4d51-faa2-418c-bc57-7fba2dbb7ce2",
+      "name": "Send message and wait for response",
+      "webhookId": "e1bdae19-5e86-4e8b-825c-b97621b23696",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jroa8NJprtF3Q8wr",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cdb5abee-4a32-45a4-8037-ec14f78f7c2a",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        272,
+        -272
+      ],
+      "id": "6c5bb339-4e50-4db1-baec-e042e3b59188",
+      "name": "Approved?"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "{{ $('Lock pending').item.json.action }}",
+                    "rightValue": "update_status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c6c7e3f4-c424-4ab8-8487-4a05afff69d5"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "91d019ea-dfb0-442b-92a4-462ce2f0984d",
+                    "leftValue": "={{ $('Lock pending').item.json.action }}",
+                    "rightValue": "send_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": "={{ false }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        432,
+        -320
+      ],
+      "id": "93e8ae34-45aa-41b9-a7c4-2faeef8b2893",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "sendTo": "{{ $('Lock pending').item.json.payload.to }}",
+        "subject": "={{ $('Lock pending').item.json.payload.subject }}",
+        "emailType": "text",
+        "message": "={{ $('Lock pending').item.json.payload.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        560,
+        0
+      ],
+      "id": "5b9c8f6e-6e0a-4251-8412-d4bb765b3ca2",
+      "name": "Send a message",
+      "webhookId": "52893fd9-f638-4530-957a-60d9bec79ff4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jroa8NJprtF3Q8wr",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pending_actions SET status = 'done' WHERE id = $1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        832,
+        -272
+      ],
+      "id": "df2bfebf-39bb-4a5e-a717-8f70d603be07",
+      "name": "Mark done",
+      "credentials": {
+        "postgres": {
+          "id": "z1y6oeOksImZMmBM",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pending_actions SET status = 'rejected' WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('Lock pending').item.json.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        256,
+        96
+      ],
+      "id": "7106b766-2ad1-4f56-9ec0-4121896a7664",
+      "name": "Mark rejected",
+      "credentials": {
+        "postgres": {
+          "id": "z1y6oeOksImZMmBM",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE candidates SET status = $1 WHERE id = $2 RETURNING id, name, status;",
+        "options": {
+          "queryReplacement": "={{ $('Lock pending').item.json.payload.new_status }}, {{ $('Lock pending').item.json.candidate_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        592,
+        -288
+      ],
+      "id": "5ad565ee-9f30-4063-8b7f-af1b1c1ffdeb",
+      "name": "Update status",
+      "credentials": {
+        "postgres": {
+          "id": "z1y6oeOksImZMmBM",
+          "name": "Postgres account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Lock pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lock pending": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send message and wait for response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message and wait for response": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Update status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update status": {
+      "main": [
+        [
+          {
+            "node": "Mark done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0e29b8f0-6244-4cf6-b4be-a32fed936e8d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b7375d659aae6ebeb11bcc3d97613c5d9ebbef196b4d293b9983acc387cffe01"
+  },
+  "nodeGroups": [],
+  "id": "LTN0W7JDnTcscHxD",
+  "tags": []
+}
