@@ -162,7 +162,7 @@
     {
       "parameters": {
         "descriptionType": "manual",
-        "toolDescription": "Execute a SQL query in PostgrePrepare an email to a candidate. This does NOT send it.\nIt creates a request that an HR manager must approve before sending.\nAlways get the candidate's email from get_candidate first.s",
+        "toolDescription": "Prepare an email to a candidate. This does NOT send it.\nIt creates a request that an HR manager must approve before sending.\nAlways get the candidate's email from get_candidate first.",
         "operation": "executeQuery",
         "query": "INSERT INTO pending_actions (action, candidate_id, payload)\nVALUES ('send_email', $1, jsonb_build_object('to', $2, 'subject', $3, 'body', $4))\nRETURNING id, status;",
         "options": {
@@ -269,9 +269,11 @@
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
-    "availableInMCP": true
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "5b8610dc-a33b-466d-b552-2de920a10314",
+  "versionId": "9eb82ca0-99e8-43bb-9967-86040dfd5113",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "b7375d659aae6ebeb11bcc3d97613c5d9ebbef196b4d293b9983acc387cffe01"
